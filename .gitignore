@@ -1,4 +1,6 @@
 .env
+.venv/
+.tmp/
 lab.txt
 labs/
 .pytest_cache/

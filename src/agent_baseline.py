@@ -29,8 +29,7 @@ class BaselineAgent:
         self.force_offline = force_offline
         self.sessions: dict[str, SessionState] = {}
 
-        # TODO: optionally initialize a real LangChain/LangGraph agent when dependencies exist.
-        self.langchain_agent = None
+        self.langchain_agent = None if force_offline else self._maybe_build_langchain_agent()
 
     def reply(self, user_id: str, thread_id: str, message: str) -> dict[str, Any]:
         """Student TODO: return the agent response and token accounting.
@@ -40,15 +39,13 @@ class BaselineAgent:
         - Otherwise use a deterministic offline path.
         """
 
-        raise NotImplementedError
+        return self._reply_offline(thread_id, message)
 
     def token_usage(self, thread_id: str) -> int:
-        # TODO: return cumulative agent token count for one thread.
-        raise NotImplementedError
+        return self.sessions.get(thread_id, SessionState()).token_usage
 
     def prompt_token_usage(self, thread_id: str) -> int:
-        # TODO: estimate how much prompt context this baseline kept processing.
-        raise NotImplementedError
+        return self.sessions.get(thread_id, SessionState()).prompt_tokens_processed
 
     def compaction_count(self, thread_id: str) -> int:
         # Baseline has no compact memory.
@@ -64,7 +61,20 @@ class BaselineAgent:
         - Never remember facts across different thread ids
         """
 
-        raise NotImplementedError
+        state = self.sessions.setdefault(thread_id, SessionState())
+        state.messages.append({"role": "user", "content": message})
+        prompt_context = "\n".join(item["content"] for item in state.messages)
+        state.prompt_tokens_processed += estimate_tokens(prompt_context)
+
+        answer = self._offline_response_from_thread(state.messages, message)
+        state.messages.append({"role": "assistant", "content": answer})
+        answer_tokens = estimate_tokens(answer)
+        state.token_usage += answer_tokens
+        return {
+            "answer": answer,
+            "agent_tokens": answer_tokens,
+            "prompt_tokens": estimate_tokens(prompt_context),
+        }
 
     def _maybe_build_langchain_agent(self):
         """Student TODO: optionally wire `create_agent` + `InMemorySaver` here.
@@ -72,4 +82,36 @@ class BaselineAgent:
         Use `build_chat_model(self.config.model)` so the baseline can run with any supported provider.
         """
 
-        raise NotImplementedError
+        try:
+            return build_chat_model(self.config.model)
+        except Exception:
+            return None
+
+    def _offline_response_from_thread(self, messages: list[dict[str, str]], message: str) -> str:
+        lower = message.lower()
+        if any(phrase in lower for phrase in ["tên", "đồ uống", "style", "ở đâu", "nghề", "nuôi", "món ăn"]):
+            known = []
+            for item in messages:
+                if item["role"] == "user" and _looks_like_fact(item["content"]):
+                    known.append(item["content"])
+            if known:
+                return "Trong thread này mình thấy: " + " ".join(known[-3:])
+            return "Mình chưa có thông tin đó trong thread hiện tại."
+        return "Mình đã ghi nhận trong thread hiện tại."
+
+
+def _looks_like_fact(text: str) -> bool:
+    lower = text.lower()
+    markers = [
+        "mình tên",
+        "mình ở",
+        "mình đang ở",
+        "mình đang làm",
+        "đồ uống yêu thích",
+        "món ăn yêu thích",
+        "mình thích",
+        "muốn bạn trả lời",
+        "3 bullet",
+        "nuôi",
+    ]
+    return any(marker in lower for marker in markers)

@@ -90,3 +90,60 @@ Nếu các bạn là giảng viên hoặc reviewer:
 - `Rubric.md`: tiêu chí chấm điểm và bonus
 
 Track này được thiết kế để các bạn không chỉ “dùng agent”, mà còn bắt đầu nghĩ như một người thiết kế **memory system** cho agent production.
+
+## Trang thai bai lam
+
+Phien ban hien tai hoan thien lab theo huong offline-first. Khong can API key de chay test, benchmark, demo memory, hay nop bai.
+
+### Chay test
+
+Tren Windows PowerShell:
+
+```powershell
+$base = ".tmp\pytest-$([guid]::NewGuid().ToString('N'))"
+.\.venv\Scripts\python.exe -m pytest -q -p no:cacheprovider --basetemp $base
+```
+
+Ket qua ky vong:
+
+```text
+10 passed
+```
+
+### Chay benchmark
+
+```powershell
+.\.venv\Scripts\python.exe src\benchmark.py
+```
+
+Benchmark in hai bang: Standard Benchmark va Long-Context Stress Benchmark. Moi bang co du cac cot rubric yeu cau: `Agent tokens only`, `Prompt tokens processed`, `Cross-session recall`, `Response quality`, `Memory growth (bytes)`, `Compactions`.
+
+### Xem demo memory profile
+
+```powershell
+.\.venv\Scripts\python.exe src\demo_memory_profile.py
+```
+
+Demo nay in ra `User.md` mau, gom stable facts co metadata, conflict history, decay report, va cross-session recall tren thread moi.
+
+## API key
+
+Khong can API key cho offline mode. API key chi can khi muon thu live model qua provider that.
+
+Vi du cau hinh DeepSeek trong `.env`:
+
+```env
+LLM_PROVIDER=custom
+LLM_MODEL=deepseek-v4-flash
+CUSTOM_BASE_URL=https://api.deepseek.com
+CUSTOM_API_KEY=your_key_here
+```
+
+## Bonus 90-100 da lam
+
+- Confidence threshold: chi ghi fact khi confidence du cao.
+- Structured entity extraction: tach facts thanh `Name`, `Location`, `Profession`, `Response style`, `Favorite drink`, `Favorite food`, `Pet`, `Interests`.
+- Conflict handling: fact moi thay the fact cu va ghi vao `Conflict history`.
+- Memory decay: co `decayed_confidence()` va `decay_report()` de giam uu tien fact cu theo thoi gian.
+- Noise guardrail: cau hoi, cau mo ho, hoac cau dua khong overwrite stable facts.
+- Bonus tests: `src/test_agents.py` co test rieng cho threshold, correction, metadata/decay, noise, repeated mentions.
